@@ -582,4 +582,27 @@ Describe "Test-Json" -Tags "CI" {
         $relevantErrors = $errorVar | Where-Object { $_.Exception.Message -match '/Devices/2' }
         $relevantErrors.Count | Should -BeGreaterThan 0
     }
+
+    It "Test-Json reports errors for invalid nested array items" {
+        $schema = '{"type":"object","properties":{"list":{"type":"array","items":{"type":"string","pattern":"^[a-z]+$"}}}}'
+        $json = '{"list":["ok","NOT OK"]}'
+        $errorVar = $null
+        $result = Test-Json -Json $json -Schema $schema -ErrorVariable errorVar -ErrorAction SilentlyContinue
+
+        $result | Should -BeFalse
+        $errorVar.Count | Should -BeGreaterThan 0
+        ($errorVar | Where-Object { $_.Exception.Message -match '/list/1' }).Count | Should -BeGreaterThan 0
+        { Test-Json -Json $json -Schema $schema -ErrorAction Stop } | Should -Throw -ErrorId "InvalidJsonAgainstSchemaDetailed,Microsoft.PowerShell.Commands.TestJsonCommand"
+    }
+
+    It "Test-Json reports errors for failures nested in allOf if/then" {
+        $schema = '{"allOf":[{"if":{"required":["a"]},"then":{"required":["b"]}}]}'
+        $json = '{"a":1}'
+        $errorVar = $null
+        $result = Test-Json -Json $json -Schema $schema -ErrorVariable errorVar -ErrorAction SilentlyContinue
+
+        $result | Should -BeFalse
+        $errorVar.Count | Should -BeGreaterThan 0
+        { Test-Json -Json $json -Schema $schema -ErrorAction Stop } | Should -Throw -ErrorId "InvalidJsonAgainstSchemaDetailed,Microsoft.PowerShell.Commands.TestJsonCommand"
+    }
 }
